@@ -1,0 +1,382 @@
+#!/usr/bin/env node
+const program = require("commander");
+const spawn = require("child_process").spawn;
+const fs = require("fs");
+const yaml = require("js-yaml");
+const path = require("path");
+const basePath = path.resolve();
+
+//安装faas-express
+function installFaasExpress() {
+  return new Promise((resolve, reject) => {
+    console.log("npm install faas-express");
+    var build = spawn("npm", ["install", "faas-express"]);
+    build.stdout.on("data", data => {
+      console.log(`${data}`);
+    });
+    build.on("error", error => {
+      console.error(`错误： ${error}`);
+      reject();
+    });
+    build.on("close", code => {
+      console.log(`安装结束 ${code}`);
+      build.kill();
+      resolve();
+    });
+  });
+}
+//安装babel eslint依赖
+function configFaasExpress() {
+  return new Promise((resolve, reject) => {
+    console.log(
+      "npm install -D @babel/cli @babel/core @babel/plugin-transform-runtime @babel/preset-env @babel/register @babel/runtime babel-eslint eslint eslint-config-prettier eslint-plugin-prettier prettier"
+    );
+    var build = spawn("npm", [
+      "install",
+      "-D",
+      "@babel/cli",
+      "@babel/cli",
+      "@babel/core",
+      "@babel/plugin-transform-runtime",
+      "@babel/preset-env",
+      "@babel/register",
+      "@babel/runtime",
+      "babel-eslint",
+      "eslint",
+      "eslint-config-prettier",
+      "eslint-plugin-prettier",
+      "prettier"
+    ]);
+    build.stdout.on("data", data => {
+      console.log(`${data}`);
+    });
+    build.on("error", error => {
+      console.error(`错误： ${error}`);
+      reject();
+    });
+    build.on("close", code => {
+      console.log(`安装结束 ${code}`);
+      build.kill();
+      resolve();
+    });
+  });
+}
+//拷贝.eslintrc.js babel.config.js文件，Dockerfile使用
+function initFaasExpress() {
+  return new Promise((resolve, reject) => {
+    console.log("cp .eslintrc.js babel.config.js ./");
+    var build = spawn("cp", ["node_modules/faas-express/.eslintrc.js", "node_modules/faas-express/babel.config.js", "./"]);
+    build.stdout.on("data", data => {
+      console.log(`${data}`);
+    });
+    build.on("error", error => {
+      console.error(`错误： ${error}`);
+      reject();
+    });
+    build.on("close", code => {
+      console.log(`复制结束 ${code}`);
+      build.kill();
+      resolve();
+    });
+  });
+}
+//创建新项目
+function newFaasExpress(filePath, fnName) {
+  var file = path.join(basePath, filePath);
+  fs.exists(file, function(exist) {
+    var doc;
+    if (exist) {
+      doc = yaml.safeLoad(fs.readFileSync(file), "utf8");
+    } else {
+      doc = {
+        provider: {
+          name: "openfaas",
+          gateway: "http://192.168.9.30:31112"
+        },
+        functions: {}
+      };
+    }
+    if (doc.functions[fnName]) {
+      console.log("fn existed:" + fnName);
+      return;
+    }
+    doc.functions[fnName] = {
+      lang: "faas-express",
+      handler: "./" + fnName,
+      image: "registry.cn/bi-faas-web/" + fnName + ":0.0.1"
+    };
+    fs.writeFileSync(file, yaml.safeDump(doc), {
+      encoding: "utf8"
+    });
+    fs.mkdir(path.join(basePath, fnName), function() {
+      setTimeout(() => {
+        var build = spawn("cp", ["-r", "node_modules/faas-express/examples/", "./" + fnName]);
+        build.stdout.on("data", data => {
+          console.log(`${data}`);
+        });
+        build.on("error", error => {
+          console.error(`错误： ${error}`);
+        });
+        build.on("close", code => {
+          console.log(`拷贝结束 ${code}`);
+          build.kill();
+        });
+      }, 200);
+    });
+  });
+}
+//执行shell脚本
+function doDockerSpawn(cmd, spawnArgs) {
+  return new Promise((resolve, reject) => {
+    var build = spawn(cmd, spawnArgs);
+    build.stdout.on("data", data => {
+      console.log(`${data}`);
+    });
+    build.on("error", error => {
+      console.error(`错误： ${error}`);
+      reject(error);
+    });
+    build.on("close", code => {
+      console.log(`${spawnArgs[0]}结束 ${code}`);
+      build.kill();
+      resolve(code);
+    });
+  });
+}
+//执行docker build
+function buildFaasExpress(filePath, fnm, args) {
+  var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  if (fnm == "." || fnm == "all") {
+    Object.keys(doc.functions).forEach(fnName => {
+      let buildArgs = args.reduce((t, c) => {
+        if (c) {
+          t.push("--build-arg");
+          t.push(c);
+          return t;
+        }
+      }, []);
+      var fn = doc.functions[fnName];
+      var image = fn.image;
+      var handler = fn.handler;
+      var functionArgs = fn["build-arg"];
+      if (functionArgs) {
+        functionArgs.split(",").forEach(arg => {
+          buildArgs.push("--build-arg");
+          buildArgs.push(arg);
+        });
+      }
+      var hasHandlerPath = fs.existsSync(path.join(basePath, handler));
+      if (!hasHandlerPath) {
+        console.log("handler path not exist:" + handler);
+        return;
+      }
+      let spawnArgs = ["build", "-f", "node_modules/faas-express/Dockerfile", "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
+      console.log("docker", spawnArgs.join(" "));
+      doDockerSpawn("docker", spawnArgs);
+    });
+  } else {
+    let buildArgs = args.reduce((t, c) => {
+      if (c) {
+        t.push("--build-arg");
+        t.push(c);
+        return t;
+      }
+    }, []);
+    var fnName = fnm || Object.keys(doc.functions)[0];
+    var fn = doc.functions[fnName];
+    if (!fn) {
+      console.log("function name not exist:" + fnName);
+      return;
+    }
+    var image = fn.image;
+    var handler = fn.handler;
+    var functionArgs = fn["build-arg"];
+    if (functionArgs) {
+      functionArgs.split(",").forEach(arg => {
+        buildArgs.push("--build-arg");
+        buildArgs.push(arg);
+      });
+    }
+    var hasHandlerPath = fs.existsSync(path.join(basePath, handler));
+    if (!hasHandlerPath) {
+      console.log("handler path not exist:" + handler);
+      return;
+    }
+
+    let spawnArgs = ["build", "-f", "node_modules/faas-express/Dockerfile", "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
+    console.log("docker", spawnArgs.join(" "));
+    doDockerSpawn("docker", spawnArgs);
+  }
+}
+//执行docker push
+function pushFaasExpress(filePath, fnm) {
+  var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  if (fnm == "." || fnm == "all") {
+    Object.keys(doc.functions).forEach(fnName => {
+      var fn = doc.functions[fnName];
+      var image = fn.image;
+      var spawnArgs = ["push", image];
+      console.log("docker", spawnArgs.join(" "));
+      doDockerSpawn("docker", spawnArgs);
+    });
+  } else {
+    var fnName = fnm || Object.keys(doc.functions)[0];
+    var fn = doc.functions[fnName];
+    if (!fn) {
+      console.log("function name not exist:" + fnName);
+      return;
+    }
+    var image = fn.image;
+    var spawnArgs = ["push", image];
+    console.log("docker", spawnArgs.join(" "));
+    doDockerSpawn("docker", spawnArgs);
+  }
+}
+//执行faas-cli deploy
+function deployFaasExpress(filePath, fnm, gtw, img, envs) {
+  var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  if (fnm == "." || fnm == "all") {
+    Object.keys(doc.functions).forEach(fnName => {
+      var fn = doc.functions[fnName];
+      var image = img || fn.image;
+      var gateway = gtw || doc.provider.gateway;
+      var spawnArgs = ["deploy", "--image=" + image, "--name=" + fnName, "--gateway=" + gateway];
+      if (envs && envs.length) spawnArgs.push("--env " + envs);
+      console.log("faas-cli", spawnArgs.join(" "));
+      doDockerSpawn("faas-cli", spawnArgs);
+    });
+  } else {
+    var fnName = fnm || Object.keys(doc.functions)[0];
+    var fn = doc.functions[fnName];
+    if (!fn) {
+      console.log("function name not exist:" + fnName);
+      return;
+    }
+    var image = img || fn.image;
+    var gateway = gtw || doc.provider.gateway;
+    var spawnArgs = ["deploy", "--image=" + image, "--name=" + fnName, "--gateway=" + gateway];
+    if (envs && envs.length) spawnArgs.push("--env " + envs);
+    console.log("faas-cli", spawnArgs.join(" "));
+    doDockerSpawn("faas-cli", spawnArgs);
+  }
+}
+//自动生成models
+function autoModels(filePath, fnm, tables) {
+  var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  var fnName = fnm || Object.keys(doc.functions)[0];
+  var fn = doc.functions[fnName];
+  if (!fn) {
+    console.log("function name not exist:" + fnName);
+    return;
+  }
+  var handler = fn.handler;
+  const nodeEnv = process.env.NODE_ENV || "development";
+  var configYaml = yaml.safeLoad(fs.readFileSync(path.join(handler, "config.yml"), "utf8"));
+  let config = configYaml[nodeEnv].db;
+  const SequelizeAuto = require("../tools/SequelizeAuto");
+  var auto = new SequelizeAuto(config.dbname, config.username, config.password, {
+    host: config.host,
+    dialect: config.dialect,
+    directory: path.join(basePath, handler, "models"),
+    port: config.port,
+    additional: {
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+      timestamps: true,
+      underscored: true
+    },
+    tables: tables
+  });
+  auto.run(function(err) {
+    if (err) throw err;
+    console.log(auto.tables);
+  });
+}
+//自动生成routes
+function autoRoutes(filePath, fnm, routes) {
+  var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  var fnName = fnm || Object.keys(doc.functions)[0];
+  var fn = doc.functions[fnName];
+  if (!fn) {
+    console.log("function name not exist:" + fnName);
+    return;
+  }
+  var handler = fn.handler;
+  const RouteAuto = require("../tools/RouteAuto");
+  var is = new RouteAuto(path.join(basePath, handler));
+  is.gen(routes);
+}
+
+function collect(val, memo) {
+  memo.push(val);
+  return memo;
+}
+
+program.version("0.0.38");
+
+program
+  .command("init")
+  .option("-v, --version <string>", "update faas-express version")
+  .action(function(cmd) {
+    installFaasExpress()
+      .then(() => {
+        return initFaasExpress();
+      })
+      .then(() => {
+        return configFaasExpress();
+      });
+  });
+
+program
+  .command("new <fn>")
+  .option("-f, --file <string>", "yaml file")
+  .action(function(fn, cmd) {
+    newFaasExpress(cmd.file || "function.yml", fn);
+  });
+
+program
+  .command("build <fn>")
+  .option("-f, --file <string>", "yaml file")
+  .option("-a, --build-arg <string>", "Set build-time variables", collect, [])
+  .action(function(fn, cmd) {
+    buildFaasExpress(cmd.file || "function.yml", fn, cmd["buildArg"]);
+  });
+
+program
+  .command("push <fn>")
+  .option("-f, --file <string>", "yaml file")
+  .action(function(fn, cmd) {
+    pushFaasExpress(cmd.file || "function.yml", fn);
+  });
+
+program
+  .command("deploy <fn>")
+  .option("-f, --file <string>", "yaml file")
+  .option("-g, --gateway <string>", "Gateway")
+  .option("-i, --image <string>", "Docker image to deploy")
+  .option("-e, --env <string>", "Set one or more environment variables (ENVVAR=VALUE)")
+  .action(function(fn, cmd) {
+    deployFaasExpress(cmd.file || "function.yml", fn, cmd.gateway, cmd.image, cmd.env);
+  });
+
+program
+  .command("model <table> [otherTables...]")
+  .option("-f, --file <string>", "yaml file")
+  .option("-n, --fn <string>", "function")
+  .action(function(table, otherTables, cmd) {
+    let tables = [table];
+    tables.push(...otherTables);
+    autoModels(cmd.file || "function.yml", cmd.fn, tables);
+  });
+
+program
+  .command("route <model> [otherModels...]")
+  .option("-f, --file <string>", "yaml file")
+  .option("-n, --fn <string>", "function")
+  .action(function(model, otherModels, cmd) {
+    let models = [model];
+    models.push(...otherModels);
+    autoRoutes(cmd.file || "function.yml", cmd.fn, models);
+  });
+
+program.parse(process.argv);

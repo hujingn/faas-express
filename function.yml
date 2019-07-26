@@ -1,0 +1,10 @@
+provider:
+  name: openfaas
+  gateway: http://192.168.9.30:31112
+functions:
+  luban-admin:
+    build-arg: NODE_ENV=development
+    lang: node-express
+    handler: ./examples
+    image: registry.aibee.cn/bi-faas-web/luban-admin:0.15
+

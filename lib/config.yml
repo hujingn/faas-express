@@ -1,0 +1,91 @@
+development:
+  db:
+    dbname: test
+    username: root
+    password: 123456
+    host: localhost
+    port: 3306
+    dialect: mysql
+    pool: 
+      max: 2
+      min: 0
+      acquire: 30000
+      idle: 10000
+  redis:
+    password: 123456
+    host: 192.168.9.7
+    port: 6379
+    db: 0
+  log4j:
+    http:
+      level: info
+      type: console
+    db:
+      level: info
+      type: console
+  env:
+    host: localhost:3000
+    function: ""
+    root: /
+  schedule:
+test:
+  db:
+    dbname: db_test
+    username: root
+    password: 123456
+    host: localhost
+    port: 3306
+    dialect: mysql
+    pool: 
+      max: 10
+      min: 0
+      acquire: 30000
+      idle: 10000
+  redis:
+    password: abc123$%^
+    host: 192.168.9.7
+    port: 6379
+    db: 0
+  log4j:
+    http:
+      level: info
+      type: console
+      # type: dateFile
+      # filename: logs/http
+      # pattern: _yyyy-MM-dd.log
+      # alwaysIncludePattern: true
+    db:
+      level: info
+      type: console
+  env:
+    host: 192.168.9.30:31112
+    function: /function/test-luban-admin
+    root: /
+production:
+  db:
+    dbname: db_test
+    username: root
+    password: 123456
+    host: localhost
+    port: 3306
+    dialect: mysql
+    pool: 
+      max: 10
+      min: 0
+      acquire: 30000
+      idle: 10000
+  redis:
+    password: abc123$%^
+    host: 192.168.9.7
+    port: 6379
+  log4j:
+    http:
+      level: error
+      type: console
+    db:
+      level: error
+      type: console
+  env:
+    host: 192.168.9.30:31112
+    function: /function/luban-admin
+    root: /

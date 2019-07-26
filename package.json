@@ -1,0 +1,54 @@
+{
+  "name": "faas-express",
+  "version": "0.0.38",
+  "description": "node express faas template",
+  "main": "index.js",
+  "scripts": {
+    "start": "NODE_ENV=development node index.js",
+    "stop": "lsof -i:3000 | grep node | awk '{ print $2 }' | xargs kill -9"
+  },
+  "bin": {
+    "faas-express": "bin/faas-express"
+  },
+  "keywords": [
+    "node",
+    "faas",
+    "express"
+  ],
+  "author": "hujingn",
+  "license": "ISC",
+  "dependencies": {
+    "art-template": "^4.13.2",
+    "body-parser": "^1.18.2",
+    "cron": "^1.7.1",
+    "express": "^4.16.2",
+    "ioredis": "^4.9.5",
+    "log4js": "^4.3.1",
+    "mkdirp": "^0.5.1",
+    "moment": "^2.24.0",
+    "mysql2": "^1.6.5",
+    "sequelize": "^5.9.2",
+    "swagger-jsdoc": "^3.2.9",
+    "swagger-ui-express": "^4.0.2"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.5.0",
+    "@babel/core": "^7.5.0",
+    "@babel/plugin-transform-runtime": "^7.5.0",
+    "@babel/preset-env": "^7.5.0",
+    "@babel/register": "^7.4.4",
+    "@babel/runtime": "^7.5.0",
+    "babel-eslint": "^10.0.2",
+    "commander": "^2.20.0",
+    "eslint": "^5.8.0",
+    "eslint-config-prettier": "^4.2.0",
+    "eslint-plugin-prettier": "^3.0.1",
+    "mysql": "^2.17.1",
+    "prettier": "^1.17.0"
+  },
+  "lint-staged": {
+    "*.js": [
+      "git add"
+    ]
+  }
+}
