@@ -1,213 +1,215 @@
-export default function(app, db, util, service) {
-  /**
-   * @swagger
-   * definitions:
-   *   {{$data.name}}:
-   *     properties:{{each $data.fields}}
-   *       {{$value.key}}:
-   *         type: {{$value.type}}
-   *         description: {{$value.comment||$value.key}}{{/each}}
-   */
+var { router, db, utils, service, variables, Route } = require("faas-express");
+var app = router;
+var util = utils;
 
-  /**
-   * @swagger
-   * /{{$data.name}}:
-   *   get:
-   *     tags:
-   *       - 自动生成{{$data.name}}
-   *     description: 分页查询{{$data.name}}
-   *     produces:
-   *       - application/json
-   *     parameters:
-   *       - name: page
-   *         in: query
-   *         type: integer
-   *       - name: size
-   *         in: query
-   *         type: integer
-   *       - name: order
-   *         in: query
-   *         type: string
-   *     responses:
-   *       200:
-   *         description: An array of {{$data.name}}
-   *         schema:
-   *            $ref: '#/definitions/{{$data.name}}'
-   */
-  app.get("/{{$data.name}}", function(req, res) {
-    let page = util.getPage(req.query),
-      size = util.getSize(req.query),
-      offset = (page - 1) * size,
-      limit = size;
-    let where = util.getQueryWhere(req.query, db.Op, db.{{$data.name}});
-    let order = util.getOrder(req.query, db.{{$data.name}});
-    db.{{$data.name}}
-      .findAndCountAll({
-        where,
-        limit,
-        offset,
-        order
-      })
-      .then(data => {
-        res.json(util.wrapWithPage(data, page, size));
-      })
-      .catch(err => {
-        res.json(util.wrapError(err.message));
-      });
-  });
+/**
+ * @swagger
+ * definitions:
+ *   {{$data.name}}:
+ *     properties:{{each $data.fields}}
+ *       {{$value.key}}:
+ *         type: {{$value.type}}
+ *         description: {{$value.comment||$value.key}}{{/each}}
+ */
 
-  /**
-   * @swagger
-   * /{{$data.name}}/{id}:
-   *   get:
-   *     tags:
-   *       - 自动生成{{$data.name}}
-   *     description: 查询详情
-   *     produces:
-   *       - application/json
-   *     parameters:
-   *       - name: id
-   *         in: path
-   *         required: true
-   *         type: integer
-   *     responses:
-   *       200:
-   *         description: A single {{$data.name}}
-   *         schema:
-   *           $ref: '#/definitions/{{$data.name}}'
-   */
-  app.get("/{{$data.name}}/:id", function(req, res) {
-    if (!req.params.id) {
-      res.json(wrapError("参数缺失"));
-      return;
-    }
-    db.{{$data.name}}
-      .findOne({
-        where: {
-          id: req.params.id
-        }
-      })
-      .then(data => {
-        res.json(util.wrap(data));
-      })
-      .catch(err => {
-        res.json(util.wrapError(err));
-      });
-  });
+/**
+ * @swagger
+ * /{{$data.name}}:
+ *   get:
+ *     tags:
+ *       - 自动生成{{$data.name}}
+ *     description: 分页查询{{$data.name}}
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         type: integer
+ *       - name: size
+ *         in: query
+ *         type: integer
+ *       - name: order
+ *         in: query
+ *         type: string
+ *     responses:
+ *       200:
+ *         description: An array of {{$data.name}}
+ *         schema:
+ *            $ref: '#/definitions/{{$data.name}}'
+ */
+app.get("/{{$data.name}}", function(req, res) {
+  let page = util.getPage(req.query),
+    size = util.getSize(req.query),
+    offset = (page - 1) * size,
+    limit = size;
+  let where = util.getQueryWhere(req.query, db.Op, db.{{$data.name}});
+  let order = util.getOrder(req.query, db.{{$data.name}});
+  db.{{$data.name}}
+    .findAndCountAll({
+      where,
+      limit,
+      offset,
+      order
+    })
+    .then(data => {
+      res.json(util.wrapWithPage(data, page, size));
+    })
+    .catch(err => {
+      res.json(util.wrapError(err.message));
+    });
+});
 
-    /**
-   * @swagger
-   * /{{$data.name}}:
-   *   post:
-   *     tags:
-   *       - 自动生成{{$data.name}}
-   *     description: 新增
-   *     produces:
-   *       - application/json
-   *     parameters:
-   *       - name: {{$data.name}}
-   *         description: json对象
-   *         in: body
-   *         required: true
-   *         schema:
-   *           $ref: '#/definitions/{{$data.name}}'
-   *     responses:
-   *       200:
-   *         description: Successfully created
-   */
-  app.post("/{{$data.name}}", function(req, res) {
-    let checkData = util.checkModelData(req.body, db.{{$data.name}});
-    if (checkData) {
-      res.json(util.wrapError(checkData));
-      return;
-    }
-    db.{{$data.name}}
-      .create(req.body)
-      .then(data => {
-        res.json(util.wrap(data));
-      })
-      .catch(err => {
-        res.json(util.wrapError(err.message));
-      });
-  });
+/**
+ * @swagger
+ * /{{$data.name}}/{id}:
+ *   get:
+ *     tags:
+ *       - 自动生成{{$data.name}}
+ *     description: 查询详情
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         type: integer
+ *     responses:
+ *       200:
+ *         description: A single {{$data.name}}
+ *         schema:
+ *           $ref: '#/definitions/{{$data.name}}'
+ */
+app.get("/{{$data.name}}/:id", function(req, res) {
+  if (!req.params.id) {
+    res.json(wrapError("参数缺失"));
+    return;
+  }
+  db.{{$data.name}}
+    .findOne({
+      where: {
+        id: req.params.id
+      }
+    })
+    .then(data => {
+      res.json(util.wrap(data));
+    })
+    .catch(err => {
+      res.json(util.wrapError(err));
+    });
+});
 
-  /**
-   * @swagger
-   * /{{$data.name}}/{id}:
-   *   put:
-   *     tags:
-   *       - 自动生成{{$data.name}}
-   *     description: 更新
-   *     produces:
-   *       - application/json
-   *     parameters:
-   *       - name: id
-   *         in: path
-   *         required: true
-   *       - name: {{$data.name}}
-   *         description: json对象
-   *         in: body
-   *         required: true
-   *         schema:
-   *           $ref: '#/definitions/{{$data.name}}'
-   *     responses:
-   *       200:
-   *         description: Successfully updated
-   */
-  app.put("/{{$data.name}}/:id", function(req, res) {
-    if (!req.params.id) {
-      res.json(util.wrapError("参数缺失"));
-      return;
-    }
-    let checkData = util.checkModelData(req.body, db.{{$data.name}});
-    if (checkData) {
-      res.json(util.wrapError(checkData));
-      return;
-    }
-    db.{{$data.name}}
-      .update(req.body, {
-        where: { id: req.params.id }
-      })
-      .then(data => {
-        res.json(util.wrap(data));
-      })
-      .catch(err => {
-        res.json(util.wrapError(err));
-      });
-  });
+/**
+ * @swagger
+ * /{{$data.name}}:
+ *   post:
+ *     tags:
+ *       - 自动生成{{$data.name}}
+ *     description: 新增
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: {{$data.name}}
+ *         description: json对象
+ *         in: body
+ *         required: true
+ *         schema:
+ *           $ref: '#/definitions/{{$data.name}}'
+ *     responses:
+ *       200:
+ *         description: Successfully created
+ */
+app.post("/{{$data.name}}", function(req, res) {
+  let checkData = util.checkModelData(req.body, db.{{$data.name}});
+  if (checkData) {
+    res.json(util.wrapError(checkData));
+    return;
+  }
+  db.{{$data.name}}
+    .create(req.body)
+    .then(data => {
+      res.json(util.wrap(data));
+    })
+    .catch(err => {
+      res.json(util.wrapError(err.message));
+    });
+});
 
-  /**
-   * @swagger
-   * /{{$data.name}}/{id}:
-   *   delete:
-   *     tags:
-   *       - 自动生成{{$data.name}}
-   *     description: 删除
-   *     produces:
-   *       - application/json
-   *     parameters:
-   *       - name: id
-   *         in: path
-   *         required: true
-   *         type: integer
-   *     responses:
-   *       200:
-   *         description: Successfully deleted
-   */
-  app.delete("/{{$data.name}}/:id", function(req, res) {
-    if (!req.params.id) {
-      res.json(util.wrapError("参数缺失"));
-      return;
-    }
-    db.{{$data.name}}
-      .destroy({
-        where: { id: req.params.id }
-      })
-      .then(data => {
-        res.json(util.wrap(data));
-      })
-      .catch(() => {
-        res.json(util.wrapError(err.message));
-      });
-  });
-}
+/**
+ * @swagger
+ * /{{$data.name}}/{id}:
+ *   put:
+ *     tags:
+ *       - 自动生成{{$data.name}}
+ *     description: 更新
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *       - name: {{$data.name}}
+ *         description: json对象
+ *         in: body
+ *         required: true
+ *         schema:
+ *           $ref: '#/definitions/{{$data.name}}'
+ *     responses:
+ *       200:
+ *         description: Successfully updated
+ */
+app.put("/{{$data.name}}/:id", function(req, res) {
+  if (!req.params.id) {
+    res.json(util.wrapError("参数缺失"));
+    return;
+  }
+  let checkData = util.checkModelData(req.body, db.{{$data.name}});
+  if (checkData) {
+    res.json(util.wrapError(checkData));
+    return;
+  }
+  db.{{$data.name}}
+    .update(req.body, {
+      where: { id: req.params.id }
+    })
+    .then(data => {
+      res.json(util.wrap(data));
+    })
+    .catch(err => {
+      res.json(util.wrapError(err));
+    });
+});
+
+/**
+ * @swagger
+ * /{{$data.name}}/{id}:
+ *   delete:
+ *     tags:
+ *       - 自动生成{{$data.name}}
+ *     description: 删除
+ *     produces:
+ *       - application/json
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully deleted
+ */
+app.delete("/{{$data.name}}/:id", function(req, res) {
+  if (!req.params.id) {
+    res.json(util.wrapError("参数缺失"));
+    return;
+  }
+  db.{{$data.name}}
+    .destroy({
+      where: { id: req.params.id }
+    })
+    .then(data => {
+      res.json(util.wrap(data));
+    })
+    .catch(() => {
+      res.json(util.wrapError(err.message));
+    });
+});

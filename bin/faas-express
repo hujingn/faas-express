@@ -35,9 +35,10 @@ function configFaasExpress() {
       "install",
       "-D",
       "@babel/cli",
-      "@babel/cli",
       "@babel/core",
       "@babel/plugin-transform-runtime",
+      "@babel/plugin-proposal-class-properties",
+      "@babel/plugin-proposal-decorators",
       "@babel/preset-env",
       "@babel/register",
       "@babel/runtime",
@@ -64,8 +65,8 @@ function configFaasExpress() {
 //拷贝.eslintrc.js babel.config.js文件，Dockerfile使用
 function initFaasExpress() {
   return new Promise((resolve, reject) => {
-    console.log("cp .eslintrc.js babel.config.js ./");
-    var build = spawn("cp", ["node_modules/faas-express/.eslintrc.js", "node_modules/faas-express/babel.config.js", "./"]);
+    console.log("cp .eslintrc.js .babelrc ./");
+    var build = spawn("cp", ["node_modules/faas-express/.eslintrc.js", "node_modules/faas-express/.babelrc", "./"]);
     build.stdout.on("data", data => {
       console.log(`${data}`);
     });
@@ -101,16 +102,17 @@ function newFaasExpress(filePath, fnName) {
       return;
     }
     doc.functions[fnName] = {
+      "build-args": ["NODE_ENV=development"],
       lang: "faas-express",
       handler: "./" + fnName,
-      image: "registry.cn/bi-faas-web/" + fnName + ":0.0.1"
+      image: "registry.aibee.cn/bi-faas-web/" + fnName + ":0.0.1"
     };
     fs.writeFileSync(file, yaml.safeDump(doc), {
       encoding: "utf8"
     });
     fs.mkdir(path.join(basePath, fnName), function() {
       setTimeout(() => {
-        var build = spawn("cp", ["-r", "node_modules/faas-express/examples/", "./" + fnName]);
+        var build = spawn("cp", ["-r", "node_modules/faas-express/template/", "./" + fnName]);
         build.stdout.on("data", data => {
           console.log(`${data}`);
         });
@@ -146,6 +148,11 @@ function doDockerSpawn(cmd, spawnArgs) {
 //执行docker build
 function buildFaasExpress(filePath, fnm, args) {
   var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
+  var dockerFilePath = "node_modules/faas-express/Dockerfile";
+  if (fs.existsSync(path.join(basePath, "Dockerfile"))) {
+    dockerFilePath = "Dockerfile";
+    console.log("use custom define Dockerfile: " + path.join(basePath, "Dockerfile"));
+  }
   if (fnm == "." || fnm == "all") {
     Object.keys(doc.functions).forEach(fnName => {
       let buildArgs = args.reduce((t, c) => {
@@ -158,9 +165,16 @@ function buildFaasExpress(filePath, fnm, args) {
       var fn = doc.functions[fnName];
       var image = fn.image;
       var handler = fn.handler;
-      var functionArgs = fn["build-arg"];
+      var functionArg = fn["build-arg"];
+      var functionArgs = fn["build-args"];
+      if (functionArg) {
+        functionArg.split(",").forEach(arg => {
+          buildArgs.push("--build-arg");
+          buildArgs.push(arg);
+        });
+      }
       if (functionArgs) {
-        functionArgs.split(",").forEach(arg => {
+        functionArgs.forEach(arg => {
           buildArgs.push("--build-arg");
           buildArgs.push(arg);
         });
@@ -170,7 +184,7 @@ function buildFaasExpress(filePath, fnm, args) {
         console.log("handler path not exist:" + handler);
         return;
       }
-      let spawnArgs = ["build", "-f", "node_modules/faas-express/Dockerfile", "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
+      let spawnArgs = ["build", "-f", dockerFilePath, "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
       console.log("docker", spawnArgs.join(" "));
       doDockerSpawn("docker", spawnArgs);
     });
@@ -190,9 +204,16 @@ function buildFaasExpress(filePath, fnm, args) {
     }
     var image = fn.image;
     var handler = fn.handler;
-    var functionArgs = fn["build-arg"];
+    var functionArg = fn["build-arg"];
+    var functionArgs = fn["build-args"];
+    if (functionArg) {
+      functionArg.split(",").forEach(arg => {
+        buildArgs.push("--build-arg");
+        buildArgs.push(arg);
+      });
+    }
     if (functionArgs) {
-      functionArgs.split(",").forEach(arg => {
+      functionArgs.forEach(arg => {
         buildArgs.push("--build-arg");
         buildArgs.push(arg);
       });
@@ -203,7 +224,7 @@ function buildFaasExpress(filePath, fnm, args) {
       return;
     }
 
-    let spawnArgs = ["build", "-f", "node_modules/faas-express/Dockerfile", "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
+    let spawnArgs = ["build", "-f", dockerFilePath, "--build-arg", "FN_HANDLER=" + handler, ...buildArgs, "-t", image, "."];
     console.log("docker", spawnArgs.join(" "));
     doDockerSpawn("docker", spawnArgs);
   }
@@ -241,7 +262,25 @@ function deployFaasExpress(filePath, fnm, gtw, img, envs) {
       var image = img || fn.image;
       var gateway = gtw || doc.provider.gateway;
       var spawnArgs = ["deploy", "--image=" + image, "--name=" + fnName, "--gateway=" + gateway];
-      if (envs && envs.length) spawnArgs.push("--env " + envs);
+
+      var functionArg = fn["build-arg"];
+      var functionArgs = fn["build-args"];
+      if (functionArg) {
+        functionArg.split(",").forEach(arg => {
+          spawnArgs.push("--env=" + arg);
+        });
+      }
+      if (functionArgs) {
+        functionArgs.forEach(arg => {
+          spawnArgs.push("--env=" + arg);
+        });
+      }
+
+      if (envs && envs.length > 0) {
+        envs.forEach(env => {
+          spawnArgs.push("--env=" + env);
+        });
+      }
       console.log("faas-cli", spawnArgs.join(" "));
       doDockerSpawn("faas-cli", spawnArgs);
     });
@@ -255,13 +294,27 @@ function deployFaasExpress(filePath, fnm, gtw, img, envs) {
     var image = img || fn.image;
     var gateway = gtw || doc.provider.gateway;
     var spawnArgs = ["deploy", "--image=" + image, "--name=" + fnName, "--gateway=" + gateway];
-    if (envs && envs.length) spawnArgs.push("--env " + envs);
+
+    var functionArg = fn["build-arg"];
+    var functionArgs = fn["build-args"];
+    if (functionArg) {
+      functionArg.split(",").forEach(arg => {
+        spawnArgs.push("--env=" + arg);
+      });
+    }
+    if (functionArgs) {
+      functionArgs.forEach(arg => {
+        spawnArgs.push("--env=" + arg);
+      });
+    }
+
+    if (envs && envs.length) spawnArgs.push("--env=" + envs);
     console.log("faas-cli", spawnArgs.join(" "));
     doDockerSpawn("faas-cli", spawnArgs);
   }
 }
 //自动生成models
-function autoModels(filePath, fnm, tables) {
+function autoModels(filePath, fnm, tables, useDecorator) {
   var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
   var fnName = fnm || Object.keys(doc.functions)[0];
   var fn = doc.functions[fnName];
@@ -285,7 +338,8 @@ function autoModels(filePath, fnm, tables) {
       timestamps: true,
       underscored: true
     },
-    tables: tables
+    tables: tables,
+    decorator: useDecorator
   });
   auto.run(function(err) {
     if (err) throw err;
@@ -293,7 +347,7 @@ function autoModels(filePath, fnm, tables) {
   });
 }
 //自动生成routes
-function autoRoutes(filePath, fnm, routes) {
+function autoRoutes(filePath, fnm, routes, useDecorator) {
   var doc = yaml.safeLoad(fs.readFileSync(path.join(basePath, filePath)), "utf8");
   var fnName = fnm || Object.keys(doc.functions)[0];
   var fn = doc.functions[fnName];
@@ -303,7 +357,7 @@ function autoRoutes(filePath, fnm, routes) {
   }
   var handler = fn.handler;
   const RouteAuto = require("../tools/RouteAuto");
-  var is = new RouteAuto(path.join(basePath, handler));
+  var is = new RouteAuto(path.join(basePath, handler), useDecorator);
   is.gen(routes);
 }
 
@@ -312,12 +366,21 @@ function collect(val, memo) {
   return memo;
 }
 
-program.version("0.0.38");
+program.version(
+  (() => {
+    var file = fs.readFileSync(path.join(__dirname, "../package.json"), "utf8");
+    return JSON.parse(file).version;
+  })()
+);
 
 program
   .command("init")
   .option("-v, --version <string>", "update faas-express version")
   .action(function(cmd) {
+    if (!fs.existsSync(path.join(basePath, "./package.json"))) {
+      console.log("package.json not found");
+      return;
+    }
     installFaasExpress()
       .then(() => {
         return initFaasExpress();
@@ -354,7 +417,7 @@ program
   .option("-f, --file <string>", "yaml file")
   .option("-g, --gateway <string>", "Gateway")
   .option("-i, --image <string>", "Docker image to deploy")
-  .option("-e, --env <string>", "Set one or more environment variables (ENVVAR=VALUE)")
+  .option("-e, --env <string>", "Set one or more environment variables (ENVVAR=VALUE)", collect, [])
   .action(function(fn, cmd) {
     deployFaasExpress(cmd.file || "function.yml", fn, cmd.gateway, cmd.image, cmd.env);
   });
@@ -363,20 +426,24 @@ program
   .command("model <table> [otherTables...]")
   .option("-f, --file <string>", "yaml file")
   .option("-n, --fn <string>", "function")
+  .option("-d, --decorator", "generate decorator code")
   .action(function(table, otherTables, cmd) {
     let tables = [table];
     tables.push(...otherTables);
-    autoModels(cmd.file || "function.yml", cmd.fn, tables);
+    let useDecorator = cmd.decorator;
+    autoModels(cmd.file || "function.yml", cmd.fn, tables, useDecorator);
   });
 
 program
   .command("route <model> [otherModels...]")
   .option("-f, --file <string>", "yaml file")
   .option("-n, --fn <string>", "function")
+  .option("-d, --decorator", "generate decorator code")
   .action(function(model, otherModels, cmd) {
     let models = [model];
     models.push(...otherModels);
-    autoRoutes(cmd.file || "function.yml", cmd.fn, models);
+    let useDecorator = cmd.decorator;
+    autoRoutes(cmd.file || "function.yml", cmd.fn, models, useDecorator);
   });
 
 program.parse(process.argv);

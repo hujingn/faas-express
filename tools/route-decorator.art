@@ -1,0 +1,104 @@
+import { router as app, db, utils as util, service, variables, Route } from "faas-express";
+
+class Routes {
+  @Route("/{{$data.name}}", "get")
+  listPage(req, res) {
+    let page = util.getPage(req.query),
+      size = util.getSize(req.query),
+      offset = (page - 1) * size,
+      limit = size;
+    let where = util.getQueryWhere(req.query, db.Op, db.{{$data.name}});
+    let order = util.getOrder(req.query, db.{{$data.name}});
+    db.{{$data.name}}
+      .findAndCountAll({
+        where,
+        limit,
+        offset,
+        order
+      })
+      .then(data => {
+        res.json(util.wrapWithPage(data, page, size));
+      })
+      .catch(err => {
+        res.json(util.wrapError(err));
+      });
+  }
+
+  @Route("/{{$data.name}}/:id", "get")
+  getById(req, res) {
+    if (!req.params.id) {
+      res.json(util.wrapError("参数缺失"));
+      return;
+    }
+    db.{{$data.name}}
+      .findOne({
+        where: {
+          id: req.params.id
+        }
+      })
+      .then(data => {
+        res.json(util.wrap(data));
+      })
+      .catch(err => {
+        res.json(util.wrapError(err));
+      });
+  }
+
+  @Route("/{{$data.name}}", "post")
+  create(req, res) {
+    let checkData = util.checkModelData(req.body, db.{{$data.name}});
+    if (checkData) {
+      res.json(util.wrapError(checkData));
+      return;
+    }
+    db.{{$data.name}}
+      .create(req.body)
+      .then(data => {
+        res.json(util.wrap(data));
+      })
+      .catch(err => {
+        res.json(util.wrapError(err));
+      });
+  }
+
+  @Route("/{{$data.name}}/:id", "put")
+  update(req, res) {
+    if (!req.params.id) {
+      res.json(util.wrapError("参数缺失"));
+      return;
+    }
+    let checkData = util.checkModelData(req.body, db.{{$data.name}});
+    if (checkData) {
+      res.json(util.wrapError(checkData));
+      return;
+    }
+    db.{{$data.name}}
+      .update(req.body, {
+        where: { id: req.params.id }
+      })
+      .then(data => {
+        res.json(util.wrap(data));
+      })
+      .catch(err => {
+        res.json(util.wrapError(err));
+      });
+  }
+
+  @Route("/{{$data.name}}/:id", "delete")
+  delete(req, res) {
+    if (!req.params.id) {
+      res.json(util.wrapError("参数缺失"));
+      return;
+    }
+    db.{{$data.name}}
+      .destroy({
+        where: { id: req.params.id }
+      })
+      .then(data => {
+        res.json(util.wrap(data));
+      })
+      .catch(() => {
+        res.json(util.wrapError(err));
+      });
+  }
+}

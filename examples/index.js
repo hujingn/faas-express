@@ -1,5 +1,6 @@
-var faasExpress = require("faas-express");
-var path = require("path");
-var basePath = path.resolve(__dirname);
-console.log(basePath);
-faasExpress(basePath);
+require("@babel/register");
+const faasExpress = require("../index");
+const path = require("path");
+const basePath = path.resolve(__dirname);
+const app = new faasExpress(basePath);
+app.listen();

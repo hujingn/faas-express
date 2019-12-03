@@ -155,16 +155,27 @@ AutoSequelize.prototype.run = function(callback) {
           spaces = "";
 
         for (var x = 0; x < self.options.indentation; ++x) {
-          spaces += self.options.spaces === true ? " " : "\t";
+          spaces += self.options.spaces === true ? " " : "  ";
         }
 
         var tableName = self.options.camelCase ? _.camelCase(table) : table;
         var tsTableDef = self.options.typescript ? "export interface " + tableName + "Attribute {" : "";
 
         if (!self.options.typescript) {
-          text[table] = "/* jshint indent: " + self.options.indentation + " */\n\n";
-          text[table] += "module.exports = function(sequelize, DataTypes) {\n";
-          text[table] += spaces + "return sequelize.define('" + tableName + "', {\n";
+          text[table] = "/* jshint indent: " + self.options.indentation + " */\n";
+          if (self.options.decorator) {
+            text[table] += 'import { db, DB, Sequelize } from "faas-express";\n\n';
+            text[table] += '@DB("' + tableName + '")\n';
+            text[table] += "class tableModel {\n";
+            text[table] += spaces + "attributes = {\n";
+          } else {
+            text[table] += 'var { db, sequelize, Sequelize } = require("faas-express");\n\n';
+            text[table] += "db.define(\n";
+            text[table] += spaces + '"' + tableName + '",\n';
+            text[table] += spaces + "{\n";
+          }
+          // text[table] += "module.exports = function(sequelize, DataTypes) {\n";
+          // text[table] += spaces + "return sequelize.define('" + tableName + "', {\n";
         } else {
           text[table] = tsHelper.model.getModelFileStart(self.options.indentation, spaces, tableName);
         }
@@ -191,7 +202,7 @@ AutoSequelize.prototype.run = function(callback) {
           // column's attributes
           var fieldAttr = _.keys(self.tables[table][field]);
           var fieldName = self.options.camelCase ? _.camelCase(field) : field;
-          text[table] += spaces + spaces + "'" + fieldName + "': {\n";
+          text[table] += spaces + spaces + fieldName + ": {\n";
 
           // Serial key for postgres...
           var defaultVal = self.tables[table][field].defaultValue;
@@ -285,19 +296,19 @@ AutoSequelize.prototype.run = function(callback) {
 
                 // don't prepend N for MSSQL when building models...
                 val_text = _.trimStart(val_text, "N");
-                text[table] += spaces + spaces + spaces + attr + ": " + val_text;
+                text[table] += spaces + spaces + spaces + attr + ": " + val_text.replace(/'/g, '"');
               }
             } else if (attr === "type" && self.tables[table][field][attr].indexOf("ENUM") === 0) {
-              text[table] += spaces + spaces + spaces + attr + ": DataTypes." + self.tables[table][field][attr];
+              text[table] += spaces + spaces + spaces + attr + ": Sequelize." + self.tables[table][field][attr];
             } else {
               var _attr = `${self.tables[table][field][attr] || ""}`.toLowerCase();
               var val = quoteWrapper + self.tables[table][field][attr] + quoteWrapper;
 
               if (_attr === "boolean" || _attr === "bit(1)" || _attr === "bit") {
-                val = "DataTypes.BOOLEAN";
+                val = "Sequelize.BOOLEAN";
               } else if (_attr.match(/^(smallint|mediumint|tinyint|int)/)) {
                 var length = _attr.match(/\(\d+\)/);
-                val = "DataTypes.INTEGER" + (!_.isNull(length) ? length : "");
+                val = "Sequelize.INTEGER" + (!_.isNull(length) ? length : "");
 
                 var unsigned = _attr.match(/unsigned/i);
                 if (unsigned) val += ".UNSIGNED";
@@ -305,39 +316,39 @@ AutoSequelize.prototype.run = function(callback) {
                 var zero = _attr.match(/zerofill/i);
                 if (zero) val += ".ZEROFILL";
               } else if (_attr.match(/^bigint/)) {
-                val = "DataTypes.BIGINT";
+                val = "Sequelize.BIGINT";
               } else if (_attr.match(/^varchar/)) {
                 var length = _attr.match(/\(\d+\)/);
-                val = "DataTypes.STRING" + (!_.isNull(length) ? length : "");
+                val = "Sequelize.STRING" + (!_.isNull(length) ? length : "");
               } else if (_attr.match(/^string|varying|nvarchar/)) {
-                val = "DataTypes.STRING";
+                val = "Sequelize.STRING";
               } else if (_attr.match(/^char/)) {
                 var length = _attr.match(/\(\d+\)/);
-                val = "DataTypes.CHAR" + (!_.isNull(length) ? length : "");
+                val = "Sequelize.CHAR" + (!_.isNull(length) ? length : "");
               } else if (_attr.match(/^real/)) {
-                val = "DataTypes.REAL";
+                val = "Sequelize.REAL";
               } else if (_attr.match(/text|ntext$/)) {
-                val = "DataTypes.TEXT";
+                val = "Sequelize.TEXT";
               } else if (_attr === "date") {
-                val = "DataTypes.DATEONLY";
+                val = "Sequelize.DATEONLY";
               } else if (_attr.match(/^(date|timestamp)/)) {
-                val = "DataTypes.DATE";
+                val = "Sequelize.DATE";
               } else if (_attr.match(/^(time)/)) {
-                val = "DataTypes.TIME";
+                val = "Sequelize.TIME";
               } else if (_attr.match(/^(float|float4)/)) {
-                val = "DataTypes.FLOAT";
+                val = "Sequelize.FLOAT";
               } else if (_attr.match(/^decimal/)) {
-                val = "DataTypes.DECIMAL";
+                val = "Sequelize.DECIMAL";
               } else if (_attr.match(/^(float8|double precision|numeric)/)) {
-                val = "DataTypes.DOUBLE";
+                val = "Sequelize.DOUBLE";
               } else if (_attr.match(/^uuid|uniqueidentifier/)) {
-                val = "DataTypes.UUIDV4";
+                val = "Sequelize.UUIDV4";
               } else if (_attr.match(/^jsonb/)) {
-                val = "DataTypes.JSONB";
+                val = "Sequelize.JSONB";
               } else if (_attr.match(/^json/)) {
-                val = "DataTypes.JSON";
+                val = "Sequelize.JSON";
               } else if (_attr.match(/^geometry/)) {
-                val = "DataTypes.GEOMETRY";
+                val = "Sequelize.GEOMETRY";
               }
               if (attr == "comment" && self.tables[table][field][attr] == null) {
               } else {
@@ -374,14 +385,23 @@ AutoSequelize.prototype.run = function(callback) {
           if (self.options.typescript) tsTableDef += tsHelper.def.getMemberDefinition(spaces, fieldName, tsVal, tsAllowNull);
         });
 
-        text[table] += spaces + "}";
+        if (self.options.decorator) {
+          text[table] += spaces + "};\n\n";
+        } else {
+          text[table] += spaces + "},\n";
+        }
 
         //conditionally add additional options to tag on to orm objects
         var hasadditional = _.isObject(self.options.additional) && _.keys(self.options.additional).length > 0;
 
-        text[table] += ", {\n";
+        if (self.options.decorator) {
+          text[table] += spaces + "options = {\n";
+        } else {
+          text[table] += spaces + "{\n";
+          text[table] += spaces + spaces + "sequelize,\n";
+        }
 
-        text[table] += spaces + spaces + "tableName: '" + table + "',\n";
+        text[table] += spaces + spaces + 'tableName: "' + table + '",\n';
 
         if (hasadditional) {
           _.each(self.options.additional, addAdditionalOption);
@@ -389,7 +409,11 @@ AutoSequelize.prototype.run = function(callback) {
 
         text[table] = text[table].trim();
         text[table] = text[table].substring(0, text[table].length - 1);
-        text[table] += "\n" + spaces + "}";
+        if (self.options.decorator) {
+          text[table] += "\n" + spaces + "};";
+        } else {
+          text[table] += "\n" + spaces + "}\n);";
+        }
 
         // typescript end table in definitions file
         if (self.options.typescript) typescriptFiles[0] += tsHelper.def.getTableDefinition(tsTableDef, tableName);
@@ -402,13 +426,19 @@ AutoSequelize.prototype.run = function(callback) {
             text[table] += spaces + spaces + spaces + "plural: '" + table + "'\n";
             text[table] += spaces + spaces + "},\n";
           } else {
-            value = _.isBoolean(value) ? value : "'" + value + "'";
+            value = _.isBoolean(value) ? value : '"' + value + '"';
             text[table] += spaces + spaces + key + ": " + value + ",\n";
           }
         }
 
-        //resume normal output
-        text[table] += ");\n};\n";
+        if (self.options.decorator) {
+          text[table] += "\n\n" + spaces + "associate(models) {}\n";
+          //resume normal output
+          // text[table] += ");\n};\n";
+          text[table] += "}\n";
+        } else {
+          text[table] += "\n\ndb.associate(models => {});\n";
+        }
         _callback(null);
       },
       function() {

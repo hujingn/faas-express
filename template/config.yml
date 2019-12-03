@@ -1,9 +1,9 @@
 development:
   db:
-    dbname: label_db_dev
-    username: label_db_dev_user
-    password: 94ZQ5sV#krQm3KXt
-    host: manage16.aibee.cn
+    dbname: db_dev
+    username: root
+    password: 123456
+    host: localhost
     port: 3306
     dialect: mysql
     pool:
@@ -13,7 +13,7 @@ development:
       idle: 10000
   redis:
     password: abc123$%^
-    host: redis-cluster-openfaas.openfaas-dev
+    host: 192.168.9.7
     port: 6379
   log4j:
     http:
@@ -43,12 +43,9 @@ test:
       acquire: 30000
       idle: 10000
   redis:
-    mode: sentinel
-    host: 127.0.0.1
-    port: 26379
-    password: 123456
-    name: mymaster
-    db: 1
+    password: abc123$%^
+    host: 192.168.9.7
+    port: 6379
   log4j:
     http:
       level: info
@@ -81,12 +78,9 @@ production:
       acquire: 30000
       idle: 10000
   redis:
-    mode: sentinel
-    host: 127.0.0.1
-    port: 26379
-    password: 123456
-    name: mymaster
-    db: 1
+    password: abc123$%^
+    host: 192.168.9.7
+    port: 6379
   log4j:
     http:
       level: error
